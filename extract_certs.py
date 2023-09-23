@@ -1,17 +1,9 @@
 import json
 import os
 import time
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 
-input_file = '/acme.json'
+input_file = '/acme/acme.json'
 output_dir = '/extracted-certs'
-
-class AcmeJsonHandler(FileSystemEventHandler):
-    def on_modified(self, event):
-        if not event.is_directory and event.src_path == input_file:
-            print("acme.json modified, extracting certificates...")
-            extract_certs()
 
 def extract_certs():
     if not os.path.exists(input_file):
@@ -59,15 +51,7 @@ def extract_certs():
             continue
 
 if __name__ == "__main__":
+    print("Starting Traefik Acme to x509 Cert Export...")
     extract_certs()
-
-    observer = Observer()
-    observer.schedule(AcmeJsonHandler(), path=os.path.dirname(input_file))
-    observer.start()
-
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
-    observer.join()
+    print("Sleeping 8 minutes, then exporting again...")
+    time.sleep(8 * 60)

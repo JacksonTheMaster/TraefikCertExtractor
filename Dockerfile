@@ -4,8 +4,6 @@ WORKDIR /app
 
 COPY extract_certs.py /app/extract_certs.py
 
-RUN pip install watchdog
-
-VOLUME ["/acme.json", "/extracted-certs"]
+VOLUME ["/acme", "/extracted-certs"]
 
 CMD ["python", "/app/extract_certs.py"]
