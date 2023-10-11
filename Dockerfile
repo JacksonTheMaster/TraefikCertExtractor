@@ -6,4 +6,4 @@ COPY extract_certs.py /app/extract_certs.py
 
 VOLUME ["/acme", "/extracted-certs"]
 
-CMD ["python", "/app/extract_certs.py"]
+CMD ["python", "-u", "/app/extract_certs.py"]

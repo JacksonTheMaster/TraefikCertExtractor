@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import base64
 
 input_file = '/acme/acme.json'
 output_dir = '/extracted-certs'
@@ -33,23 +34,25 @@ def extract_certs():
             continue
 
         try:
+            decoded_certificate = base64.b64decode(certificate).decode('utf-8')
+            decoded_key = base64.b64decode(key).decode('utf-8')
+        except Exception as e:
+            print(f"Error decoding the base64 data for domain {domain}. Reason: {str(e)}")
+            continue
+
+        try:
             with open(os.path.join(output_dir, f'{domain}.crt'), 'w') as cert_file:
-                cert_file.write("-----BEGIN CERTIFICATE-----\n")
-                cert_file.write(certificate)
-                cert_file.write("\n-----END CERTIFICATE-----\n")
+                cert_file.write(decoded_certificate)
         except Exception as e:
             print(f"Error: Unable to write certificate for domain {domain}. Reason: {str(e)}")
             continue
 
         try:
             with open(os.path.join(output_dir, f'{domain}.key'), 'w') as key_file:
-                key_file.write("-----BEGIN PRIVATE KEY-----\n")
-                key_file.write(key)
-                key_file.write("\n-----END PRIVATE KEY-----\n")
+                key_file.write(decoded_key)
         except Exception as e:
             print(f"Error: Unable to write key for domain {domain}. Reason: {str(e)}")
             continue
-
 if __name__ == "__main__":
     print("Starting Traefik Acme to x509 Cert Export...")
     extract_certs()
