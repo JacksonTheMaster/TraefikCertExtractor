@@ -41,14 +41,45 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Certificates</title>
 	<style>
-		body { font-family: Arial, sans-serif; }
-		h1 { color: #333; }
-		.details { margin-bottom: 20px; }
-		summary { font-size: 18px; font-weight: bold; cursor: pointer; }
-		ul { list-style-type: none; padding: 0; }
-		li { margin: 5px 0; }
-		a { text-decoration: none; color: #1a73e8; }
-		a:hover { text-decoration: underline; }
+		body {
+			font-family: Arial, sans-serif;
+			background-color: #121212;
+			color: #e0e0e0;
+			margin: 0;
+			padding: 20px;
+		}
+		h1 {
+			color: #ffffff;
+			text-align: center;
+			margin-bottom: 30px;
+		}
+		.details {
+			background: linear-gradient(135deg, #434343 0%, #000000 100%);
+			border-radius: 8px;
+			margin-bottom: 20px;
+			padding: 15px;
+		}
+		summary {
+			font-size: 18px;
+			font-weight: bold;
+			cursor: pointer;
+			color: #1e88e5;
+		}
+		ul {
+			list-style-type: none;
+			padding: 0;
+			margin: 10px 0 0 0;
+		}
+		li {
+			margin: 5px 0;
+		}
+		a {
+			text-decoration: none;
+			color: #81d4fa;
+		}
+		a:hover {
+			text-decoration: underline;
+		}
 	</style>
 </head>
 <body>
