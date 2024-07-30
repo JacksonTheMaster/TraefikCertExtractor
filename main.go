@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-const outputDir = "./extracted-certs"
+const outputDir = "/extracted-certs"
 
 // listFiles handles the display of the list of certificate files
 func listFiles(w http.ResponseWriter, r *http.Request) {

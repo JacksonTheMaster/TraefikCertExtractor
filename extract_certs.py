@@ -6,7 +6,7 @@ import subprocess
 
 input_file = '/acme/acme.json'
 output_dir = '/extracted-certs'
-executable_path = './tce.arm64'
+executable_path = './tce.amd64'
 
 def extract_certs():
     if not os.path.exists(input_file):
