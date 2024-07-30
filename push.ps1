@@ -1,5 +1,5 @@
 $image="traefikcertextractor"
-$version="latest"
+$version="nightly"
 
 
 echo "$image":"$version"
