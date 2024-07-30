@@ -2,9 +2,11 @@ import json
 import os
 import time
 import base64
+import subprocess
 
 input_file = '/acme/acme.json'
 output_dir = '/extracted-certs'
+executable_path = './tce.arm64'
 
 def extract_certs():
     if not os.path.exists(input_file):
@@ -57,4 +59,9 @@ if __name__ == "__main__":
     print("Starting Traefik Acme to x509 Cert Export...")
     extract_certs()
     print("Sleeping 8 minutes, then exporting again...")
+    try:
+        subprocess.run([executable_path], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running {executable_path}. Reason: {str(e)}")
+        
     time.sleep(8 * 60)
