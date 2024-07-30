@@ -88,7 +88,7 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 	for group, files := range groups {
 		fmt.Fprintf(w, `<details class="details"><summary>%s</summary><ul>`, group)
 		for _, file := range files {
-			fmt.Fprintf(w, `<li><a href="/certs/%s">%s</a></li>`, file, file)
+			fmt.Fprintf(w, `<li><a href="/certs/%s" download>%s</a></li>`, file, file)
 		}
 		fmt.Fprintln(w, `</ul></details>`)
 	}
