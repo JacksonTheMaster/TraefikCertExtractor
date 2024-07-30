@@ -6,9 +6,22 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const outputDir = "/extracted-certs"
+
+// groupFiles groups certificate files by their names without extensions
+func groupFiles(files []os.DirEntry) map[string][]string {
+	groups := make(map[string][]string)
+	for _, file := range files {
+		if !file.IsDir() {
+			name := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+			groups[name] = append(groups[name], file.Name())
+		}
+	}
+	return groups
+}
 
 // listFiles handles the display of the list of certificate files
 func listFiles(w http.ResponseWriter, r *http.Request) {
@@ -17,6 +30,8 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unable to read directory", http.StatusInternalServerError)
 		return
 	}
+
+	groups := groupFiles(files)
 
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprintln(w, `<!DOCTYPE html>
@@ -28,6 +43,8 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 	<style>
 		body { font-family: Arial, sans-serif; }
 		h1 { color: #333; }
+		.details { margin-bottom: 20px; }
+		summary { font-size: 18px; font-weight: bold; cursor: pointer; }
 		ul { list-style-type: none; padding: 0; }
 		li { margin: 5px 0; }
 		a { text-decoration: none; color: #1a73e8; }
@@ -35,17 +52,17 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 	</style>
 </head>
 <body>
-	<h1>Certificates</h1>
-	<ul>`)
+	<h1>Certificates</h1>`)
 
-	for _, file := range files {
-		if !file.IsDir() {
-			fmt.Fprintf(w, `<li><a href="/certs/%s">%s</a></li>`, file.Name(), file.Name())
+	for group, files := range groups {
+		fmt.Fprintf(w, `<details class="details"><summary>%s</summary><ul>`, group)
+		for _, file := range files {
+			fmt.Fprintf(w, `<li><a href="/certs/%s">%s</a></li>`, file, file)
 		}
+		fmt.Fprintln(w, `</ul></details>`)
 	}
 
-	fmt.Fprintln(w, `</ul>
-</body>
+	fmt.Fprintln(w, `</body>
 </html>`)
 }
 
