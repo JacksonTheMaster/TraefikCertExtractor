@@ -1,5 +1,12 @@
 # Traefik Certificate Extractor
 
+[![Docker Image Version](https://img.shields.io/docker/v/jmgitde/traefikcertextractor/latest?label=docker%20loves&logo=docker)](https://hub.docker.com/repository/docker/jmgitde/traefikcertextractor/general)
+[![Docker Pulls](https://img.shields.io/docker/pulls/jmgitde/traefikcertextractor?logo=docker)](https://hub.docker.com/repository/docker/jmgitde/traefikcertextractor/general)
+[![Docker Image Size](https://img.shields.io/docker/image-size/jmgitde/traefikcertextractor/latest?logo=docker)](https://hub.docker.com/repository/docker/jmgitde/traefikcertextractor/general)
+[![Go Version](https://img.shields.io/badge/Go-1.21-blue?logo=go)](https://golang.org)
+[![Architecture](https://img.shields.io/badge/Architecture-amd64%20%7C%20arm64-lightgrey?logo=hardware)](https://hub.docker.com/repository/docker/jmgitde/traefikcertextractor/general)
+[![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)
+
 ![Traefik Certificate Extractor Preview](preview.png)
 
 A tool that extracts and manages TLS certificates from Traefik's acme.json file, providing a convenient web interface to view certificate details and download certificate files.
@@ -67,3 +74,6 @@ Docker Hub: [jmgitde/traefikcertextractor](https://hub.docker.com/repository/doc
 ## License
 
 MIT License
+
+## Python-predecessor
+This project originally used a Python approach, but has been completely overhauled to use 100% Go instead. The migration to Go improved performance, reduced dependencies, and allowed for easier multi-architecture builds. Also, I am transitioning my software to arm, so..
