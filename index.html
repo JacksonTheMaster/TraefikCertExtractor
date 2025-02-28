@@ -3,64 +3,678 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificates</title>
+    <title>Traefik Cert Extractor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+            --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --transition: all 0.3s ease;
+        }
+
+        * {
             margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            color: #ffffff;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .details {
-            background: linear-gradient(135deg, #434343 0%, #000000 100%);
-            border-radius: 8px;
-            margin-bottom: 20px;
-            padding: 15px;
-        }
-        summary {
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #1e88e5;
-        }
-        ul {
-            list-style-type: none;
             padding: 0;
-            margin: 10px 0 0 0;
+            box-sizing: border-box;
         }
-        li {
-            margin: 5px 0;
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+            min-height: 100vh;
         }
-        a {
-            text-decoration: none;
-            color: #81d4fa;
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
         }
-        a:hover {
-            text-decoration: underline;
+
+        header {
+            background-color: var(--bg-secondary);
+            padding: 1.5rem 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
         }
-        .cert-info {
-            margin-top: 15px;
-            padding: 10px;
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        h1 i {
+            color: var(--accent-blue);
+        }
+
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background-color: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .cert-quick-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .quick-cert {
+            background-color: var(--bg-secondary);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .quick-cert:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--card-shadow);
+        }
+
+        .quick-cert-status {
+            min-width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-green {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+        }
+
+        .status-yellow {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: var(--accent-yellow);
+        }
+
+        .status-red {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+        }
+
+        .quick-cert-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .quick-cert-domain {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .quick-cert-expiry {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .cert-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .cert-card {
+            background-color: var(--bg-secondary);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            transition: var(--transition);
+        }
+
+        .cert-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .cert-header {
+            padding: 1.25rem;
+            background-color: var(--bg-card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 10px;
+            border-radius: 16px;
+        }
+
+        .cert-domain {
+            font-weight: 600;
+            font-size: 1.1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 250px;
+        }
+
+        .cert-toggle {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 1.25rem;
+            transition: var(--transition);
+        }
+
+        .cert-toggle:hover {
+            color: var(--accent-blue);
+        }
+
+        .cert-content {
+            padding: 1.25rem;
+            display: none;
+        }
+
+        .cert-content.active {
+            display: block;
+        }
+
+        .cert-details {
+            margin-bottom: 1rem;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .status-valid {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+        }
+
+        .status-warning {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: var(--accent-yellow);
+        }
+
+        .status-danger {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+        }
+
+        .cert-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .cert-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cert-info-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .cert-info-value {
+            font-weight: 500;
+        }
+
+        .sans-list {
             background-color: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
         }
-        .sans {
-            color: #b0bec5;
-            font-size: 0.9em;
+
+        .sans-title {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
         }
-        .cert-info p {
-            margin: 5px 0;
+
+        .sans-list ul {
+            list-style-type: none;
+            padding-left: 0.5rem;
+        }
+
+        .sans-list li {
+            font-size: 0.875rem;
+            position: relative;
+            padding-left: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .sans-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--accent-blue);
+        }
+
+        .file-list {
+            margin-top: 1rem;
+        }
+
+        .file-list-title {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .file-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .file-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: rgba(59, 130, 246, 0.1);
+            border-radius: 0.25rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            transition: var(--transition);
+        }
+
+        .file-item:hover {
+            background-color: rgba(59, 130, 246, 0.2);
+        }
+
+        .file-item i {
+            color: var(--accent-blue);
+        }
+
+        .search-bar {
+            display: flex;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 0.75rem 1rem 0.75rem 3rem;
+            border: none;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .search-bar i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+        }
+
+        .search-bar input:focus {
+            box-shadow: 0 0 0 2px var(--accent-blue);
+        }
+
+        .no-certs {
+            text-align: center;
+            padding: 3rem;
+            background-color: var(--bg-secondary);
+            border-radius: 0.75rem;
+            box-shadow: var(--card-shadow);
+        }
+
+        .no-certs i {
+            font-size: 3rem;
+            color: var(--accent-blue);
+            margin-bottom: 1rem;
+        }
+
+        .no-certs p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            margin-top: 3rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .refresh-button {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: var(--transition);
+        }
+
+        .refresh-button:hover {
+            background-color: #2563eb;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .hide {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .cert-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .cert-info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .cert-quick-view {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Certificates</h1>
-    {{CERT_GROUPS}}
+    <header>
+        <div class="header-content">
+            <h1><i class="fas fa-shield-alt"></i> Traefik Certificate Extractor</h1>
+            <button class="refresh-button" id="refresh-button">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <div class="stat-title">
+                    <i class="fas fa-certificate"></i>
+                    <span>Total Certificates</span>
+                </div>
+                <div class="stat-value" id="total-certs">0</div>
+                <div class="stat-description">Active certificate records</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Expiring Soon</span>
+                </div>
+                <div class="stat-value" id="expiring-soon">0</div>
+                <div class="stat-description">Certificates expiring within 30 days</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Healthy</span>
+                </div>
+                <div class="stat-value" id="healthy-certs">0</div>
+                <div class="stat-description">Certificates with >30 days validity</div>
+            </div>
+        </div>
+        <h2 class="section-title">
+            <i class="fas fa-th-list"></i> Quick Overview
+        </h2>
+        <div class="cert-quick-view" id="cert-quick-view">
+            <!-- Quick view certificates will be inserted here by JavaScript -->
+        </div>
+
+        <h2 class="section-title">
+            <i class="fas fa-folder-open"></i> Detailed Certificates
+        </h2>
+        <div class="cert-container" id="cert-container">
+            {{CERT_GROUPS}}
+        </div>
+    </div>
+
+    <footer>
+        <div>Certificate data refreshes automatically every 8 minutes</div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get all certificate cards
+            const certCards = document.querySelectorAll('.cert-card');
+            
+            // Calculate stats
+            updateStats();
+            
+            // Generate quick view elements
+            generateQuickView();
+            
+            // Toggle certificate details when clicking on headers
+            document.querySelectorAll('.cert-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const content = this.nextElementSibling;
+                    content.classList.toggle('active');
+                    const icon = this.querySelector('.cert-toggle i');
+                    icon.classList.toggle('fa-chevron-down');
+                    icon.classList.toggle('fa-chevron-up');
+                });
+            });
+
+            // Search functionality
+            const searchInput = document.getElementById('cert-search');
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                
+                // Search in certificate cards
+                document.querySelectorAll('.cert-card').forEach(card => {
+                    const domain = card.querySelector('.cert-domain').textContent.toLowerCase();
+                    const sans = Array.from(card.querySelectorAll('.sans-list li')).map(li => li.textContent.toLowerCase());
+                    
+                    const matches = domain.includes(searchTerm) || 
+                                   sans.some(san => san.includes(searchTerm));
+                    
+                    card.classList.toggle('hide', !matches);
+                });
+                
+                // Also search in quick view
+                document.querySelectorAll('.quick-cert').forEach(quickCert => {
+                    const domain = quickCert.querySelector('.quick-cert-domain').textContent.toLowerCase();
+                    quickCert.classList.toggle('hide', !domain.includes(searchTerm));
+                });
+                
+                // Show "no results" if all cards are hidden
+                const allCardsHidden = Array.from(document.querySelectorAll('.cert-card')).every(card => 
+                    card.classList.contains('hide')
+                );
+                
+                const noResultsEl = document.getElementById('no-results');
+                if (allCardsHidden && searchTerm && !noResultsEl) {
+                    const noResults = document.createElement('div');
+                    noResults.id = 'no-results';
+                    noResults.className = 'no-certs';
+                    noResults.innerHTML = `
+                        <i class="fas fa-search"></i>
+                        <p>No certificates found matching "${searchTerm}"</p>
+                    `;
+                    document.getElementById('cert-container').appendChild(noResults);
+                } else if (noResultsEl && (!allCardsHidden || !searchTerm)) {
+                    noResultsEl.remove();
+                }
+            });
+
+            // Refresh button
+            document.getElementById('refresh-button').addEventListener('click', function() {
+                const icon = this.querySelector('i');
+                icon.classList.add('fa-spin');
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+            });
+            
+            // Function to update dashboard stats
+            function updateStats() {
+                let totalCerts = certCards.length;
+                let expiringSoon = 0;
+                let healthyCerts = 0;
+                
+                certCards.forEach(card => {
+                    const statusBadge = card.querySelector('.status-badge');
+                    if (statusBadge.classList.contains('status-warning') || 
+                        statusBadge.classList.contains('status-danger')) {
+                        expiringSoon++;
+                    } else {
+                        healthyCerts++;
+                    }
+                });
+                
+                document.getElementById('total-certs').textContent = totalCerts;
+                document.getElementById('expiring-soon').textContent = expiringSoon;
+                document.getElementById('healthy-certs').textContent = healthyCerts;
+            }
+            
+            // Function to generate quick view elements
+            function generateQuickView() {
+                const quickViewContainer = document.getElementById('cert-quick-view');
+                
+                if (certCards.length === 0) {
+                    quickViewContainer.innerHTML = `
+                        <div class="no-certs">
+                            <i class="fas fa-certificate"></i>
+                            <p>No certificates found</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                certCards.forEach(card => {
+                    const domain = card.querySelector('.cert-domain').textContent;
+                    const daysText = card.querySelector('.days-remaining').textContent;
+                    const days = parseInt(daysText);
+                    
+                    let statusClass = "status-green";
+                    let statusIcon = "fa-check-circle";
+                    
+                    if (days < 30) {
+                        statusClass = "status-yellow";
+                        statusIcon = "fa-exclamation-circle";
+                    }
+                    
+                    if (days < 7) {
+                        statusClass = "status-red";
+                        statusIcon = "fa-exclamation-triangle";
+                    }
+                    
+                    const quickCert = document.createElement('div');
+                    quickCert.className = 'quick-cert';
+                    quickCert.setAttribute('data-domain', domain);
+                    quickCert.innerHTML = `
+                        <div class="quick-cert-status ${statusClass}">
+                            <i class="fas ${statusIcon}"></i>
+                        </div>
+                        <div class="quick-cert-info">
+                            <div class="quick-cert-domain">${domain}</div>
+                            <div class="quick-cert-expiry">${daysText} remaining</div>
+                        </div>
+                    `;
+                    
+                    // Add click event to scroll to and expand the detailed card
+                    quickCert.addEventListener('click', function() {
+                        const detailedCard = document.querySelector(`.cert-card .cert-domain:contains('${domain}')`).closest('.cert-card');
+                        detailedCard.scrollIntoView({ behavior: 'smooth' });
+                        
+                        // Expand the card details if not already expanded
+                        const content = detailedCard.querySelector('.cert-content');
+                        if (!content.classList.contains('active')) {
+                            setTimeout(() => {
+                                detailedCard.querySelector('.cert-header').click();
+                            }, 500);
+                        }
+                    });
+                    
+                    quickViewContainer.appendChild(quickCert);
+                });
+            }
+            
+            // Helper function for text contains selector
+            jQuery.expr[':'].contains = function(a, i, m) {
+                return jQuery(a).text().toUpperCase()
+                    .indexOf(m[3].toUpperCase()) >= 0;
+            };
+        });
+    </script>
 </body>
 </html>

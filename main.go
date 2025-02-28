@@ -168,55 +168,122 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Generate HTML for certificate groups with detailed information
+		// Generate HTML for certificate cards with detailed information
 		var certsHTML strings.Builder
 
-		// Sort domains to have consistent display order
-		for domain, certInfo := range certInfoMap {
-			// Calculate days until expiration
-			daysLeft := int(certInfo.NotAfter.Sub(time.Now()).Hours() / 24)
+		if len(certInfoMap) == 0 {
+			certsHTML.WriteString(`
+			<div class="no-certs">
+				<i class="fas fa-certificate"></i>
+				<p>No certificates found</p>
+			</div>
+			`)
+		} else {
+			// Process each certificate
+			for domain, certInfo := range certInfoMap {
+				// Calculate days until expiration
+				daysLeft := int(certInfo.NotAfter.Sub(time.Now()).Hours() / 24)
 
-			// Determine status color based on expiration
-			statusColor := "#4CAF50" // Green by default
-			if daysLeft < 30 {
-				statusColor = "#FFC107" // Yellow for < 30 days
-			}
-			if daysLeft < 7 {
-				statusColor = "#F44336" // Red for < 7 days
-			}
-
-			certsHTML.WriteString(fmt.Sprintf(`
-			<details class="details">
-				<summary>%s</summary>
-				<div class="cert-info">
-					<p><strong>Status:</strong> <span style="color:%s">%d days remaining</span></p>
-					<p><strong>Valid From:</strong> %s</p>
-					<p><strong>Valid Until:</strong> %s</p>
-					<p><strong>Issuer:</strong> %s</p>
-			`,
-				domain,
-				statusColor,
-				daysLeft,
-				certInfo.NotBefore.Format("2006-01-02"),
-				certInfo.NotAfter.Format("2006-01-02"),
-				certInfo.Issuer,
-			))
-
-			// Add Subject Alternative Names if any
-			if len(certInfo.SANs) > 0 {
-				certsHTML.WriteString("<p><strong>Subject Alternative Names:</strong></p><ul class='sans'>")
-				for _, san := range certInfo.SANs {
-					certsHTML.WriteString(fmt.Sprintf("<li>%s</li>", san))
+				// Determine status based on expiration
+				statusClass := "status-valid"
+				statusIcon := "fa-check-circle"
+				if daysLeft < 30 {
+					statusClass = "status-warning"
+					statusIcon = "fa-exclamation-circle"
 				}
-				certsHTML.WriteString("</ul>")
-			}
+				if daysLeft < 7 {
+					statusClass = "status-danger"
+					statusIcon = "fa-exclamation-triangle"
+				}
 
-			// Add download links
-			certsHTML.WriteString("<p><strong>Files:</strong></p><ul>")
-			for _, file := range certInfo.Files {
-				certsHTML.WriteString(fmt.Sprintf(`<li><a href="/certs/%s" download>%s</a></li>`, file, file))
+				certsHTML.WriteString(fmt.Sprintf(`
+				<div class="cert-card">
+					<div class="cert-header">
+						<div class="cert-domain">%s</div>
+						<button class="cert-toggle">
+							<i class="fas fa-chevron-down"></i>
+						</button>
+					</div>
+					<div class="cert-content">
+						<div class="cert-details">
+							<div class="status-badge %s">
+								<i class="fas %s"></i>
+								<span class="days-remaining">%d days</span> remaining
+							</div>
+							
+							<div class="cert-info-grid">
+								<div class="cert-info-item">
+									<div class="cert-info-label">Valid From</div>
+									<div class="cert-info-value">%s</div>
+								</div>
+								<div class="cert-info-item">
+									<div class="cert-info-label">Valid Until</div>
+									<div class="cert-info-value">%s</div>
+								</div>
+								<div class="cert-info-item">
+									<div class="cert-info-label">Issuer</div>
+									<div class="cert-info-value">%s</div>
+								</div>
+								<div class="cert-info-item">
+									<div class="cert-info-label">Total SANs</div>
+									<div class="cert-info-value">%d</div>
+								</div>
+							</div>
+				`,
+					domain,
+					statusClass,
+					statusIcon,
+					daysLeft,
+					certInfo.NotBefore.Format("2006-01-02"),
+					certInfo.NotAfter.Format("2006-01-02"),
+					certInfo.Issuer,
+					len(certInfo.SANs),
+				))
+
+				// Add Subject Alternative Names if any
+				if len(certInfo.SANs) > 0 {
+					certsHTML.WriteString(`
+					<div class="sans-list">
+						<div class="sans-title">Subject Alternative Names</div>
+						<ul>
+					`)
+					for _, san := range certInfo.SANs {
+						certsHTML.WriteString(fmt.Sprintf("<li>%s</li>", san))
+					}
+					certsHTML.WriteString(`
+						</ul>
+					</div>
+					`)
+				}
+
+				// Add download links
+				certsHTML.WriteString(`
+					<div class="file-list">
+						<div class="file-list-title">Files</div>
+						<div class="file-items">
+				`)
+				for _, file := range certInfo.Files {
+					fileIcon := "fa-file-alt"
+					if strings.HasSuffix(file, ".key") {
+						fileIcon = "fa-key"
+					} else if strings.HasSuffix(file, ".crt") {
+						fileIcon = "fa-certificate"
+					}
+
+					certsHTML.WriteString(fmt.Sprintf(`
+						<a href="/certs/%s" download class="file-item">
+							<i class="fas %s"></i>
+							%s
+						</a>
+					`, file, fileIcon, file))
+				}
+				certsHTML.WriteString(`
+						</div>
+					</div>
+				</div>
+			</div>
+				`)
 			}
-			certsHTML.WriteString("</ul></div></details>")
 		}
 
 		// Replace the placeholder in the HTML template
