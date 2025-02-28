@@ -1,100 +1,301 @@
 package main
 
 import (
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
-const outputDir = "/extracted-certs"
+const (
+	inputFile  = "/acme/acme.json"
+	outputDir  = "/extracted-certs"
+	htmlFile   = "./index.html"
+	serverPort = ":8080"
+)
 
-// groupFiles groups certificate files by their names without extensions
-func groupFiles(files []os.DirEntry) map[string][]string {
-	groups := make(map[string][]string)
-	for _, file := range files {
-		if !file.IsDir() {
-			name := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-			groups[name] = append(groups[name], file.Name())
-		}
+// ACMEData represents the structure of Traefik's acme.json file
+type ACMEData struct {
+	LetsEncrypt struct {
+		Certificates []struct {
+			Domain struct {
+				Main string   `json:"main"`
+				SANs []string `json:"sans,omitempty"`
+			} `json:"domain"`
+			Certificate string `json:"certificate"`
+			Key         string `json:"key"`
+		} `json:"Certificates"`
+	} `json:"letsencrypt"`
+}
+
+// CertInfo stores information about a certificate
+type CertInfo struct {
+	Domain    string
+	Issuer    string
+	NotBefore time.Time
+	NotAfter  time.Time
+	SANs      []string
+	Files     []string
+}
+
+// Global map to store certificate information
+var certInfoMap = make(map[string]*CertInfo)
+
+// extractCerts reads Traefik's acme.json file and extracts certificates
+func extractCerts() error {
+	log.Println("Starting certificate extraction...")
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	return groups
+
+	// Read acme.json file
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		return fmt.Errorf("failed to read acme.json: %w", err)
+	}
+
+	// Parse JSON
+	var acmeData ACMEData
+	if err := json.Unmarshal(data, &acmeData); err != nil {
+		return fmt.Errorf("failed to parse acme.json: %w", err)
+	}
+
+	// Extract certificates
+	for _, cert := range acmeData.LetsEncrypt.Certificates {
+		domain := cert.Domain.Main
+		log.Printf("Processing certificate for domain: %s", domain)
+
+		if cert.Certificate == "" || cert.Key == "" {
+			log.Printf("Certificate or key for domain %s is empty", domain)
+			continue
+		}
+
+		// Decode certificate
+		decodedCert, err := base64.StdEncoding.DecodeString(cert.Certificate)
+		if err != nil {
+			log.Printf("Failed to decode certificate for domain %s: %v", domain, err)
+			continue
+		}
+
+		// Extract certificate information
+		certInfo, err := parseCertificate(decodedCert)
+		if err != nil {
+			log.Printf("Failed to parse certificate for domain %s: %v", domain, err)
+		} else {
+			certInfo.Domain = domain
+			certInfo.SANs = append(certInfo.SANs, cert.Domain.SANs...)
+			certInfoMap[domain] = certInfo
+			log.Printf("Certificate info for %s: Valid from %s to %s",
+				domain,
+				certInfo.NotBefore.Format("2006-01-02"),
+				certInfo.NotAfter.Format("2006-01-02"))
+		}
+
+		// Write certificate file
+		certPath := filepath.Join(outputDir, fmt.Sprintf("%s.crt", domain))
+		if err := os.WriteFile(certPath, decodedCert, 0644); err != nil {
+			log.Printf("Failed to write certificate file for domain %s: %v", domain, err)
+			continue
+		}
+
+		if certInfo != nil {
+			certInfo.Files = append(certInfo.Files, fmt.Sprintf("%s.crt", domain))
+		}
+
+		// Decode key
+		decodedKey, err := base64.StdEncoding.DecodeString(cert.Key)
+		if err != nil {
+			log.Printf("Failed to decode key for domain %s: %v", domain, err)
+			continue
+		}
+
+		// Write key file
+		keyPath := filepath.Join(outputDir, fmt.Sprintf("%s.key", domain))
+		if err := os.WriteFile(keyPath, decodedKey, 0600); err != nil {
+			log.Printf("Failed to write key file for domain %s: %v", domain, err)
+			continue
+		}
+
+		if certInfo != nil {
+			certInfo.Files = append(certInfo.Files, fmt.Sprintf("%s.key", domain))
+		}
+
+		log.Printf("Successfully extracted certificate and key for %s", domain)
+	}
+
+	log.Println("Certificate extraction completed")
+	return nil
+}
+
+// parseCertificate extracts information from a certificate
+func parseCertificate(certData []byte) (*CertInfo, error) {
+	block, _ := pem.Decode(certData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	info := &CertInfo{
+		Issuer:    cert.Issuer.CommonName,
+		NotBefore: cert.NotBefore,
+		NotAfter:  cert.NotAfter,
+		SANs:      cert.DNSNames,
+	}
+
+	return info, nil
 }
 
 // listFiles handles the display of the list of certificate files
 func listFiles(w http.ResponseWriter, r *http.Request) {
-	files, err := os.ReadDir(outputDir)
-	if err != nil {
-		http.Error(w, "Unable to read directory", http.StatusInternalServerError)
+	// If root path, serve the HTML file
+	if r.URL.Path == "/" {
+		htmlContent, err := os.ReadFile(htmlFile)
+		if err != nil {
+			http.Error(w, "Unable to read HTML template", http.StatusInternalServerError)
+			return
+		}
+
+		// Generate HTML for certificate cards with detailed information
+		var certsHTML strings.Builder
+
+		if len(certInfoMap) == 0 {
+			certsHTML.WriteString(`
+			<div class="no-certs">
+				<i class="fas fa-certificate"></i>
+				<p>No certificates found</p>
+			</div>
+			`)
+		} else {
+			// Process each certificate
+			for domain, certInfo := range certInfoMap {
+				// Calculate days until expiration
+				daysLeft := int(certInfo.NotAfter.Sub(time.Now()).Hours() / 24)
+
+				// Determine status based on expiration
+				statusClass := "status-valid"
+				statusIcon := "fa-check-circle"
+				if daysLeft < 30 {
+					statusClass = "status-warning"
+					statusIcon = "fa-exclamation-circle"
+				}
+				if daysLeft < 7 {
+					statusClass = "status-danger"
+					statusIcon = "fa-exclamation-triangle"
+				}
+
+				certsHTML.WriteString(fmt.Sprintf(`
+				<div class="cert-card">
+					<div class="cert-header">
+						<div class="cert-domain">%s</div>
+						<button class="cert-toggle">
+							<i class="fas fa-chevron-down"></i>
+						</button>
+					</div>
+					<div class="cert-content">
+						<div class="cert-details">
+							<div class="status-badge %s">
+								<i class="fas %s"></i>
+								<span class="days-remaining">%d days</span> remaining
+							</div>
+							
+							<div class="cert-info-grid">
+								<div class="cert-info-item">
+									<div class="cert-info-label">Valid From</div>
+									<div class="cert-info-value">%s</div>
+								</div>
+								<div class="cert-info-item">
+									<div class="cert-info-label">Valid Until</div>
+									<div class="cert-info-value">%s</div>
+								</div>
+								<div class="cert-info-item">
+									<div class="cert-info-label">Issuer</div>
+									<div class="cert-info-value">%s</div>
+								</div>
+								<div class="cert-info-item">
+									<div class="cert-info-label">Total SANs</div>
+									<div class="cert-info-value">%d</div>
+								</div>
+							</div>
+				`,
+					domain,
+					statusClass,
+					statusIcon,
+					daysLeft,
+					certInfo.NotBefore.Format("2006-01-02"),
+					certInfo.NotAfter.Format("2006-01-02"),
+					certInfo.Issuer,
+					len(certInfo.SANs),
+				))
+
+				// Add Subject Alternative Names if any
+				if len(certInfo.SANs) > 0 {
+					certsHTML.WriteString(`
+					<div class="sans-list">
+						<div class="sans-title">Subject Alternative Names</div>
+						<ul>
+					`)
+					for _, san := range certInfo.SANs {
+						certsHTML.WriteString(fmt.Sprintf("<li>%s</li>", san))
+					}
+					certsHTML.WriteString(`
+						</ul>
+					</div>
+					`)
+				}
+
+				// Add download links
+				certsHTML.WriteString(`
+					<div class="file-list">
+						<div class="file-list-title">Files</div>
+						<div class="file-items">
+				`)
+				for _, file := range certInfo.Files {
+					fileIcon := "fa-file-alt"
+					if strings.HasSuffix(file, ".key") {
+						fileIcon = "fa-key"
+					} else if strings.HasSuffix(file, ".crt") {
+						fileIcon = "fa-certificate"
+					}
+
+					certsHTML.WriteString(fmt.Sprintf(`
+						<a href="/certs/%s" download class="file-item">
+							<i class="fas %s"></i>
+							%s
+						</a>
+					`, file, fileIcon, file))
+				}
+				certsHTML.WriteString(`
+						</div>
+					</div>
+				</div>
+			</div>
+				`)
+			}
+		}
+
+		// Replace the placeholder in the HTML template
+		htmlStr := strings.Replace(string(htmlContent), "{{CERT_GROUPS}}", certsHTML.String(), 1)
+
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, htmlStr)
 		return
 	}
 
-	groups := groupFiles(files)
-
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintln(w, `<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Certificates</title>
-	<style>
-		body {
-			font-family: Arial, sans-serif;
-			background-color: #121212;
-			color: #e0e0e0;
-			margin: 0;
-			padding: 20px;
-		}
-		h1 {
-			color: #ffffff;
-			text-align: center;
-			margin-bottom: 30px;
-		}
-		.details {
-			background: linear-gradient(135deg, #434343 0%, #000000 100%);
-			border-radius: 8px;
-			margin-bottom: 20px;
-			padding: 15px;
-		}
-		summary {
-			font-size: 18px;
-			font-weight: bold;
-			cursor: pointer;
-			color: #1e88e5;
-		}
-		ul {
-			list-style-type: none;
-			padding: 0;
-			margin: 10px 0 0 0;
-		}
-		li {
-			margin: 5px 0;
-		}
-		a {
-			text-decoration: none;
-			color: #81d4fa;
-		}
-		a:hover {
-			text-decoration: underline;
-		}
-	</style>
-</head>
-<body>
-	<h1>Certificates</h1>`)
-
-	for group, files := range groups {
-		fmt.Fprintf(w, `<details class="details"><summary>%s</summary><ul>`, group)
-		for _, file := range files {
-			fmt.Fprintf(w, `<li><a href="/certs/%s" download>%s</a></li>`, file, file)
-		}
-		fmt.Fprintln(w, `</ul></details>`)
-	}
-
-	fmt.Fprintln(w, `</body>
-</html>`)
+	// Handle other paths
+	http.NotFound(w, r)
 }
 
 // serveFile handles serving the certificate files
@@ -103,12 +304,34 @@ func serveFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filePath)
 }
 
-func main() {
+func startWebServer() {
 	http.HandleFunc("/", listFiles)
 	http.HandleFunc("/certs/", serveFile)
 
-	log.Println("Starting web server on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	log.Printf("Starting web server on %s", serverPort)
+	if err := http.ListenAndServe(serverPort, nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+func main() {
+	// Extract certificates on startup
+	if err := extractCerts(); err != nil {
+		log.Printf("Initial certificate extraction failed: %v", err)
+	}
+
+	// Start periodic extraction in a goroutine
+	go func() {
+		ticker := time.NewTicker(8 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if err := extractCerts(); err != nil {
+				log.Printf("Periodic certificate extraction failed: %v", err)
+			}
+		}
+	}()
+
+	// Start web server
+	startWebServer()
 }
