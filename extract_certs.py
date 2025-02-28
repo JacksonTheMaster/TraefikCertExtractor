@@ -3,10 +3,19 @@ import os
 import time
 import base64
 import subprocess
+import platform
 
 input_file = '/acme/acme.json'
 output_dir = '/extracted-certs'
-executable_path = './tce.amd64'
+
+# Correct architecture mapping
+arch_map = {
+    "x86_64": "amd64",
+    "aarch64": "arm64"
+}
+
+arch = platform.machine()
+executable_path = f"./tce.{arch_map.get(arch, 'amd64')}"  # Default to amd64 if unknown
 
 def extract_certs():
     if not os.path.exists(input_file):
@@ -55,13 +64,19 @@ def extract_certs():
         except Exception as e:
             print(f"Error: Unable to write key for domain {domain}. Reason: {str(e)}")
             continue
+
 if __name__ == "__main__":
     print("Starting Traefik Acme to x509 Cert Export...")
     extract_certs()
+    print(f"Detected architecture: {arch}")
+    print(f"Using binary: {executable_path}")
     print("Sleeping 8 minutes, then exporting again...")
+
     try:
         subprocess.run([executable_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error running {executable_path}. Reason: {str(e)}")
-        
+    except OSError as e:
+        print(f"Execution failed: {executable_path} is not a valid binary for this architecture. Reason: {str(e)}")
+    
     time.sleep(8 * 60)
